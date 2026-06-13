@@ -9,7 +9,9 @@ The ESP32 acts as a wireless turret server. A PC, browser console, or future Pyt
 •	Laser pulse
 •	Centering
 •	Emergency stop
-This project is designed so that the ESP32 firmware stays mostly fixed, while future features like computer vision, click-to-aim, red-color tracking, and GPT-based commands can be built on the PC side.________________________________________
+This project is designed so that the ESP32 firmware stays mostly fixed, while future features like computer vision, click-to-aim, red-color tracking, and GPT-based commands can be built on the PC side.
+
+
 Project Goal
 The goal is to create a stable communication base between a PC and ESP32.
 Current stage:
