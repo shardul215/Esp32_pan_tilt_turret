@@ -1,585 +1,302 @@
-ESP32 Wireless Pan-Tilt Laser Turret
+# ESP32 Wireless Pan-Tilt Control System
 
-A wireless ESP32-based pan-tilt turret system using two SG90 servos and a low-power 3.3V laser module.
-The ESP32 acts as a wireless turret server. A PC, browser console, or future Python/OpenCV/GPT application can send JSON commands over WebSocket to control:
-•	Pan angle
-•	Tilt angle
-•	Movement speed
-•	Laser arm/disarm
-•	Laser pulse
-•	Centering
-•	Emergency stop
-This project is designed so that the ESP32 firmware stays mostly fixed, while future features like computer vision, click-to-aim, red-color tracking, and GPT-based commands can be built on the PC side.
+A wireless ESP32-based pan-tilt control system using two SG90 servos and a low-power 3.3V laser module.
+The ESP32 works as a hardware controller that receives JSON commands over WebSocket from a PC/browser.
 
+This project is designed as a base for future upgrades like Python control, OpenCV camera tracking, click-to-aim, red object tracking, and GPT/voice-based command control.
 
-Project Goal
-The goal is to create a stable communication base between a PC and ESP32.
-Current stage:
-PC / Browser Console
-        ↓
-WebSocket JSON Commands
-        ↓
-ESP32
-        ↓
-Pan Servo + Tilt Servo + 3.3V Laser
+---
 
-Future stage:
-Camera + OpenCV + GPT / Voice Commands
+## Overview
+
+The main goal of this project is not just to move servos, but to build a stable **PC-to-ESP32 communication layer**.
+
+The ESP32 handles:
+
+* WiFi connection
+* WebSocket server
+* JSON command parsing
+* Pan servo control
+* Tilt servo control
+* Speed-controlled movement
+* Laser arm/disarm safety
+* Laser pulse control
+* Real-time status feedback
+
+The PC side can later handle:
+
+* Camera feed
+* Python logic
+* OpenCV tracking
+* Screen click detection
+* GPT/voice command interpretation
+* Target-to-servo angle mapping
+
+---
+
+## System Architecture
+
+```text
+PC / Browser / Future Python App
         ↓
-Python PC App
-        ↓
-WebSocket JSON Commands
+WebSocket JSON Command
         ↓
 ESP32 Turret Server
         ↓
-Pan/Tilt/Laser Hardware
+Pan Servo + Tilt Servo + Low-Power Laser
+```
 
-Features
-•	ESP32 connects to saved WiFi
-•	If WiFi is not saved, ESP32 creates setup hotspot
-•	WebSocket server for real-time command control
-•	JSON-based command protocol
-•	Pan and tilt servo control
-•	Speed-controlled smooth movement
-•	Laser arm/disarm safety system
-•	Laser pulse mode
-•	Auto laser-off safety
-•	HTTP status endpoint
-•	mDNS hostname support: turret.local
-•	Future-ready for Python/OpenCV/GPT integration
-________________________________________
-Hardware Used
-Component	Quantity
-ESP32 Dev Board	1
-SG90 Servo	2
-3.3V Laser Module	1
-External 5V Power Supply	1
-Jumper Wires	As required
-Optional capacitor	470µF / 1000µF
-________________________________________
-Wiring
-Servo Wiring
-Use the same wiring as the earlier pan-tilt build.
-Part	ESP32 Pin / Supply
-Pan Servo Signal	GPIO 18
-Tilt Servo Signal	GPIO 19
-Servo VCC	External 5V
-Servo GND	Common GND
-ESP32 GND	Common GND
+Future architecture:
+
+```text
+Camera Feed
+        ↓
+Python + OpenCV / GPT Logic
+        ↓
+Pan-Tilt Target Calculation
+        ↓
+WebSocket JSON Command
+        ↓
+ESP32 Hardware Controller
+```
+
+---
+
+## Why WebSocket?
+
+WebSocket is used because it keeps a live two-way connection open between the PC and ESP32.
+
+Unlike normal HTTP, where every command needs a new request-response cycle, WebSocket allows:
+
+* Continuous real-time communication
+* Low-delay command transfer
+* Instant status feedback from ESP32
+* Easy integration with browser, Python, and future AI logic
+
+This makes it suitable for robotic control systems where the PC sends live movement commands and the ESP32 responds with current status.
+
+---
+
+## Why JSON?
+
+Commands are sent in JSON format because JSON is:
+
+* Easy to read
+* Easy to debug
+* Easy to send from browser or Python
+* Future-proof for adding more fields later
+
+Example command:
+
+```json
+{
+  "cmd": "aim",
+  "pan": 120,
+  "tilt": 70,
+  "speed": 5,
+  "laser": 0
+}
+```
+
+This is much cleaner than sending random single-character commands.
+
+---
+
+## Hardware Used
+
+| Component                |       Quantity |
+| ------------------------ | -------------: |
+| ESP32 Dev Board          |              1 |
+| SG90 Servo Motor         |              2 |
+| 3.3V Laser Module        |              1 |
+| External 5V Power Supply |              1 |
+| Jumper Wires             |    As required |
+| Capacitor, optional      | 470µF / 1000µF |
+
+---
+
+## Wiring
+
+### Servo Connections
+
+| Component         | ESP32 / Supply |
+| ----------------- | -------------- |
+| Pan Servo Signal  | GPIO 18        |
+| Tilt Servo Signal | GPIO 19        |
+| Servo VCC         | External 5V    |
+| Servo GND         | Common GND     |
+| ESP32 GND         | Common GND     |
+
 Important:
-Servo GND and ESP32 GND must be connected together.
-Do not power SG90 servos from ESP32 3.3V.
-________________________________________
-Laser Wiring
-For a tiny 3.3V laser module:
-Laser Pin	Connection
-Laser +	GPIO 4
-Laser -	GND
-The code uses:
+
+```text
+Servo power supply GND and ESP32 GND must be connected together.
+```
+
+Do not power SG90 servos from the ESP32 3.3V pin.
+
+---
+
+### Laser Connection
+
+For a small 3.3V laser module:
+
+| Laser Pin | Connection |
+| --------- | ---------- |
+| Laser +   | GPIO 4     |
+| Laser -   | GND        |
+
+The firmware uses:
+
+```cpp
 #define LASER_PIN 4
-Recommended safer future wiring:
-ESP32 GPIO 4 → resistor → transistor base
-Laser +      → 3.3V
-Laser -      → transistor collector
-Emitter      → GND
-Use a small transistor like:
-BC547 / 2N2222 / S8050
-________________________________________
-Safety Notes
-This project is for a low-power laser pointer / LED demo only.
+```
+
+Recommended safer method for future improvement:
+
+```text
+GPIO 4 → resistor → transistor base
+Laser + → 3.3V
+Laser - → transistor collector
+Transistor emitter → GND
+```
+
+This is better if the laser module requires more current than the ESP32 GPIO can safely provide.
+
+---
+
+## Safety Notice
+
+This project is intended only for a low-power laser pointer or LED-based demo.
+
 Do not aim the laser at:
-•	Eyes
-•	People
-•	Animals
-•	Mirrors
-•	Vehicles
-•	Roads
-•	Aircraft
-•	Outside areas
-The firmware keeps the laser OFF by default and requires an arm command before laser activation.
-________________________________________
-Required Arduino Libraries
-Install these from Arduino Library Manager:
+
+* Eyes
+* People
+* Animals
+* Mirrors
+* Vehicles
+* Roads
+* Aircraft
+* Outdoor public areas
+
+The firmware includes a basic safety layer:
+
+* Laser is OFF by default
+* Laser must be armed before use
+* Laser pulse automatically turns off
+* Laser turns off on stop/disconnect
+
+---
+
+## Required Libraries
+
+Install these libraries in Arduino IDE:
+
+```text
 ESP32Servo
 WebSockets by Markus Sattler
 ArduinoJson by Benoit Blanchon
+```
+
 Board package:
+
+```text
 esp32 by Espressif Systems
-Recommended board:
+```
+
+Recommended board selection:
+
+```text
 ESP32 Dev Module
-________________________________________
-ESP32 Firmware Code
-Save this as:
-esp32_turret_server.ino
-#include <WiFi.h>
-#include <WebServer.h>
-#include <WebSocketsServer.h>
-#include <ESPmDNS.h>
-#include <Preferences.h>
-#include <ArduinoJson.h>
-#include <ESP32Servo.h>
+```
 
-// ===================== PINS =====================
-#define PAN_PIN    18
-#define TILT_PIN   19
-#define LASER_PIN  4
+---
 
-// ===================== DEVICE =====================
-#define DEVICE_NAME "turret"
-#define SETUP_SSID  "TURRET-SETUP"
-#define SETUP_PASS  "12345678"
+## Repository Structure
 
-// ===================== OBJECTS =====================
-Servo panServo;
-Servo tiltServo;
+```text
+ESP32-Wireless-Pan-Tilt-Control/
+│
+├── esp32_turret_server/
+│   └── esp32_turret_server.ino
+│
+├── README.md
+│
+└── media/
+    ├── setup_photo.jpg
+    └── demo_video.mp4
+```
 
-WebServer server(80);
-WebSocketsServer ws(81);
-Preferences prefs;
+---
 
-// ===================== SERVO STATE =====================
-int panMin = 0;
-int panMax = 180;
-int tiltMin = 0;
-int tiltMax = 180;
+## Firmware Features
 
-int currentPan = 90;
-int currentTilt = 90;
-int targetPan = 90;
-int targetTilt = 90;
+The ESP32 firmware includes:
 
-int speedLevel = 5;  // 1 slow, 10 fast
+* WiFi setup mode
+* Saved WiFi credentials using Preferences
+* WebSocket server on port `81`
+* HTTP status endpoint on port `80`
+* mDNS hostname support: `turret.local`
+* JSON command parser
+* Servo smoothing
+* Speed control
+* Laser arm/disarm
+* Laser pulse
+* Status response after every command
 
-// ===================== LASER STATE =====================
-bool armed = false;
-bool laserState = false;
-unsigned long laserOffAt = 0;
-const unsigned long MAX_LASER_MS = 3000;
+---
 
-// ===================== TIMING =====================
-unsigned long lastCmdAt = 0;
-unsigned long lastMoveAt = 0;
+## First-Time WiFi Setup
 
-// ===================== WIFI SETUP PAGE =====================
-const char WIFI_PAGE[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Turret Setup</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body style="font-family:Arial;text-align:center;padding:30px;">
-  <h2>ESP32 Turret WiFi Setup</h2>
-  <form action="/save" method="POST">
-    <input name="ssid" placeholder="WiFi SSID" style="padding:10px;width:80%;"><br><br>
-    <input name="pass" placeholder="WiFi Password" style="padding:10px;width:80%;"><br><br>
-    <button type="submit" style="padding:12px 25px;">Save & Restart</button>
-  </form>
-</body>
-</html>
-)rawliteral";
+After uploading the code, if no WiFi is saved, the ESP32 creates a setup hotspot.
 
-// ===================== LASER =====================
-void laserOff() {
-  laserState = false;
-  laserOffAt = 0;
-  digitalWrite(LASER_PIN, LOW);
-}
+Connect to:
 
-bool laserPulse(unsigned long ms) {
-  if (!armed) {
-    laserOff();
-    return false;
-  }
-
-  ms = constrain(ms, 50UL, MAX_LASER_MS);
-
-  laserState = true;
-  laserOffAt = millis() + ms;
-  digitalWrite(LASER_PIN, HIGH);
-  return true;
-}
-
-// ===================== STATUS JSON =====================
-String makeStatus(int id, bool ok, const char* msg) {
-  StaticJsonDocument<384> doc;
-
-  doc["v"] = 1;
-  doc["id"] = id;
-  doc["ok"] = ok;
-  doc["msg"] = msg;
-
-  doc["pan"] = currentPan;
-  doc["tilt"] = currentTilt;
-  doc["target_pan"] = targetPan;
-  doc["target_tilt"] = targetTilt;
-  doc["speed"] = speedLevel;
-  doc["armed"] = armed;
-  doc["laser"] = laserState;
-
-  if (WiFi.getMode() == WIFI_AP) {
-    doc["ip"] = WiFi.softAPIP().toString();
-  } else {
-    doc["ip"] = WiFi.localIP().toString();
-  }
-
-  String out;
-  serializeJson(doc, out);
-  return out;
-}
-
-void sendStatus(uint8_t client, int id, bool ok, const char* msg) {
-  String response = makeStatus(id, ok, msg);
-  ws.sendTXT(client, response);
-}
-
-// ===================== COMMAND HANDLER =====================
-void handleJson(uint8_t client, String payload) {
-  lastCmdAt = millis();
-
-  StaticJsonDocument<512> doc;
-  DeserializationError err = deserializeJson(doc, payload);
-
-  if (err) {
-    sendStatus(client, -1, false, "bad json");
-    return;
-  }
-
-  int id = doc["id"] | -1;
-  String cmd = doc["cmd"] | "";
-
-  if (cmd == "ping") {
-    sendStatus(client, id, true, "pong");
-    return;
-  }
-
-  if (cmd == "status") {
-    sendStatus(client, id, true, "status");
-    return;
-  }
-
-  if (cmd == "arm") {
-    armed = doc["value"] | false;
-
-    if (!armed) {
-      laserOff();
-    }
-
-    sendStatus(client, id, true, armed ? "armed" : "disarmed");
-    return;
-  }
-
-  if (cmd == "center") {
-    targetPan = 90;
-    targetTilt = 90;
-    laserOff();
-
-    sendStatus(client, id, true, "centered");
-    return;
-  }
-
-  if (cmd == "stop") {
-    targetPan = currentPan;
-    targetTilt = currentTilt;
-    laserOff();
-
-    sendStatus(client, id, true, "stopped");
-    return;
-  }
-
-  if (cmd == "aim") {
-    if (!doc.containsKey("pan") || !doc.containsKey("tilt")) {
-      sendStatus(client, id, false, "aim needs pan and tilt");
-      return;
-    }
-
-    int panInput = doc["pan"] | targetPan;
-    int tiltInput = doc["tilt"] | targetTilt;
-    int speedInput = doc["speed"] | speedLevel;
-
-    targetPan = constrain(panInput, panMin, panMax);
-    targetTilt = constrain(tiltInput, tiltMin, tiltMax);
-    speedLevel = constrain(speedInput, 1, 10);
-
-    int laser = doc["laser"] | 0;
-
-    if (laser == 1) {
-      unsigned long pulseMs = doc["pulse_ms"] | 300;
-
-      if (!laserPulse(pulseMs)) {
-        sendStatus(client, id, false, "aim ok, laser blocked: not armed");
-        return;
-      }
-    } else {
-      laserOff();
-    }
-
-    sendStatus(client, id, true, "aim accepted");
-    return;
-  }
-
-  if (cmd == "laser") {
-    int value = doc["value"] | 0;
-
-    if (value == 1) {
-      unsigned long pulseMs = doc["pulse_ms"] | 300;
-
-      if (!laserPulse(pulseMs)) {
-        sendStatus(client, id, false, "laser blocked: not armed");
-        return;
-      }
-
-      sendStatus(client, id, true, "laser pulse");
-      return;
-    }
-
-    laserOff();
-    sendStatus(client, id, true, "laser off");
-    return;
-  }
-
-  if (cmd == "limits") {
-    panMin = constrain((int)(doc["pan_min"] | panMin), 0, 180);
-    panMax = constrain((int)(doc["pan_max"] | panMax), 0, 180);
-    tiltMin = constrain((int)(doc["tilt_min"] | tiltMin), 0, 180);
-    tiltMax = constrain((int)(doc["tilt_max"] | tiltMax), 0, 180);
-
-    prefs.putInt("panMin", panMin);
-    prefs.putInt("panMax", panMax);
-    prefs.putInt("tiltMin", tiltMin);
-    prefs.putInt("tiltMax", tiltMax);
-
-    sendStatus(client, id, true, "limits saved");
-    return;
-  }
-
-  sendStatus(client, id, false, "unknown command");
-}
-
-// ===================== WEBSOCKET =====================
-void wsEvent(uint8_t client, WStype_t type, uint8_t* payload, size_t length) {
-  if (type == WStype_CONNECTED) {
-    sendStatus(client, -1, true, "connected");
-  }
-
-  else if (type == WStype_TEXT) {
-    String msg;
-
-    for (size_t i = 0; i < length; i++) {
-      msg += (char)payload[i];
-    }
-
-    Serial.print("RX: ");
-    Serial.println(msg);
-
-    handleJson(client, msg);
-  }
-
-  else if (type == WStype_DISCONNECTED) {
-    laserOff();
-  }
-}
-
-// ===================== SERVO SMOOTHING =====================
-void updateServos() {
-  if (millis() - lastMoveAt < 20) {
-    return;
-  }
-
-  lastMoveAt = millis();
-
-  int stepSize = speedLevel;
-
-  if (currentPan < targetPan) {
-    currentPan += min(stepSize, targetPan - currentPan);
-  }
-
-  if (currentPan > targetPan) {
-    currentPan -= min(stepSize, currentPan - targetPan);
-  }
-
-  if (currentTilt < targetTilt) {
-    currentTilt += min(stepSize, targetTilt - currentTilt);
-  }
-
-  if (currentTilt > targetTilt) {
-    currentTilt -= min(stepSize, currentTilt - targetTilt);
-  }
-
-  currentPan = constrain(currentPan, panMin, panMax);
-  currentTilt = constrain(currentTilt, tiltMin, tiltMax);
-
-  panServo.write(currentPan);
-  tiltServo.write(currentTilt);
-}
-
-// ===================== HTTP =====================
-void handleRoot() {
-  if (WiFi.getMode() == WIFI_AP) {
-    server.send_P(200, "text/html", WIFI_PAGE);
-  } else {
-    server.send(
-      200,
-      "text/plain",
-      "ESP32 Turret Online\n"
-      "WebSocket: ws://turret.local:81/\n"
-      "Status: /status\n"
-    );
-  }
-}
-
-void handleSave() {
-  String ssid = server.arg("ssid");
-  String pass = server.arg("pass");
-
-  ssid.trim();
-
-  if (ssid.length() == 0) {
-    server.send(400, "text/plain", "SSID empty");
-    return;
-  }
-
-  prefs.putString("ssid", ssid);
-  prefs.putString("pass", pass);
-
-  server.send(200, "text/plain", "Saved. Restarting...");
-  delay(800);
-  ESP.restart();
-}
-
-void handleStatus() {
-  server.send(200, "application/json", makeStatus(-1, true, "http status"));
-}
-
-// ===================== WIFI =====================
-bool connectWiFi() {
-  String ssid = prefs.getString("ssid", "");
-  String pass = prefs.getString("pass", "");
-
-  if (ssid.length() == 0) {
-    return false;
-  }
-
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);
-  WiFi.begin(ssid.c_str(), pass.c_str());
-
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  unsigned long start = millis();
-
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
-    delay(300);
-    Serial.print(".");
-  }
-
-  Serial.println();
-
-  return WiFi.status() == WL_CONNECTED;
-}
-
-void startSetupAP() {
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(SETUP_SSID, SETUP_PASS);
-
-  Serial.println("Setup AP started");
-  Serial.println("WiFi: TURRET-SETUP");
-  Serial.println("Pass: 12345678");
-  Serial.println("Open: http://192.168.4.1");
-}
-
-// ===================== SETUP =====================
-void setup() {
-  Serial.begin(115200);
-  prefs.begin("turret", false);
-
-  panMin = prefs.getInt("panMin", 0);
-  panMax = prefs.getInt("panMax", 180);
-  tiltMin = prefs.getInt("tiltMin", 0);
-  tiltMax = prefs.getInt("tiltMax", 180);
-
-  pinMode(LASER_PIN, OUTPUT);
-  laserOff();
-
-  ESP32PWM::allocateTimer(0);
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
-
-  panServo.setPeriodHertz(50);
-  tiltServo.setPeriodHertz(50);
-
-  panServo.attach(PAN_PIN, 500, 2400);
-  tiltServo.attach(TILT_PIN, 500, 2400);
-
-  panServo.write(90);
-  tiltServo.write(90);
-
-  Serial.println();
-  Serial.println("ESP32 Turret Server");
-
-  if (connectWiFi()) {
-    Serial.print("Connected. IP: ");
-    Serial.println(WiFi.localIP());
-
-    if (MDNS.begin(DEVICE_NAME)) {
-      Serial.println("mDNS: turret.local");
-    }
-  } else {
-    startSetupAP();
-  }
-
-  server.on("/", handleRoot);
-  server.on("/save", HTTP_POST, handleSave);
-  server.on("/status", HTTP_GET, handleStatus);
-  server.begin();
-
-  ws.begin();
-  ws.onEvent(wsEvent);
-
-  Serial.println("HTTP port: 80");
-  Serial.println("WebSocket port: 81");
-}
-
-// ===================== LOOP =====================
-void loop() {
-  server.handleClient();
-  ws.loop();
-
-  updateServos();
-
-  if (laserState && laserOffAt > 0 && millis() > laserOffAt) {
-    laserOff();
-  }
-
-  if (laserState && millis() - lastCmdAt > 5000) {
-    laserOff();
-  }
-}
-________________________________________
-First-Time WiFi Setup
-After uploading, if no WiFi is saved, ESP32 creates a setup hotspot:
+```text
 WiFi Name: TURRET-SETUP
 Password: 12345678
-Connect to it and open:
+```
+
+Then open:
+
+```text
 http://192.168.4.1
+```
+
 Enter your WiFi or mobile hotspot SSID and password.
-After restart, ESP32 connects to that WiFi.
-Serial Monitor will show:
-Connected. IP: 192.168.x.x
+
+After saving, ESP32 restarts and connects to the saved WiFi.
+
+Serial Monitor will show something like:
+
+```text
+Connected. IP: 192.168.0.107
 mDNS: turret.local
 HTTP port: 80
 WebSocket port: 81
-Example:
-Connected. IP: 192.168.0.107
-________________________________________
-Testing ESP32 Status
-Open in browser:
+```
+
+---
+
+## Checking ESP32 Status
+
+Open this in a browser:
+
+```text
 http://192.168.0.107/status
+```
+
 or:
+
+```text
 http://turret.local/status
-Expected JSON:
+```
+
+Example response:
+
+```json
 {
   "v": 1,
   "id": -1,
@@ -594,15 +311,45 @@ Expected JSON:
   "laser": false,
   "ip": "192.168.0.107"
 }
-________________________________________
-Browser Console Test Controller
-Open any page in Chrome.
-Press:
+```
+
+---
+
+## WebSocket Address
+
+Use this WebSocket address:
+
+```text
+ws://192.168.0.107:81/
+```
+
+or, if mDNS works:
+
+```text
+ws://turret.local:81/
+```
+
+Replace `192.168.0.107` with the IP printed in your Serial Monitor.
+
+---
+
+## Browser Console Test Controller
+
+Open Chrome, press:
+
+```text
 F12 → Console
+```
+
 If Chrome blocks pasting, type:
+
+```text
 allow pasting
-Then paste this code.
-Replace the IP if your ESP32 IP is different.
+```
+
+Then paste this:
+
+```js
 window.ws = new WebSocket("ws://192.168.0.107:81/");
 
 ws.onopen = () => console.log("✅ Connected to ESP32 Turret");
@@ -666,101 +413,313 @@ function aimPulse(pan, tilt, speed = 5, ms = 300) {
     pulse_ms: ms
   });
 }
-________________________________________
-Available Console Commands
-After pasting the browser console test controller, the following commands can be used.
-________________________________________
-1. Check Connection
+```
+
+---
+
+## Available Console Commands
+
+### Check Connection
+
+```js
 ping();
-Purpose:
-Checks if ESP32 WebSocket server is alive.
+```
+
 Expected reply:
+
+```json
 {
   "ok": true,
   "msg": "pong"
 }
-________________________________________
-2. Center Turret
+```
+
+---
+
+### Center Turret
+
+```js
 center();
-Purpose:
-Moves pan and tilt to 90 degrees.
-Turns laser off.
-________________________________________
-3. Aim Turret
+```
+
+This moves the pan and tilt servos to 90 degrees and turns the laser off.
+
+---
+
+### Aim Turret
+
+```js
 aim(120, 70, 5);
+```
+
 Format:
+
+```js
 aim(pan, tilt, speed);
-Meaning:
-pan   = 120 degrees
-tilt  = 70 degrees
-speed = 5
-Speed range:
-1  = slow
-5  = normal
-10 = fast
-Examples:
+```
+
+Example:
+
+```js
 aim(90, 90, 5);
 aim(130, 90, 5);
 aim(50, 90, 5);
 aim(90, 50, 5);
 aim(90, 130, 5);
-________________________________________
-4. Slow Movement Test
-aim(140, 140, 1);
-Purpose:
-Moves slowly to pan 140, tilt 140.
-________________________________________
-5. Fast Movement Test
-aim(40, 40, 10);
-Purpose:
-Moves quickly to pan 40, tilt 40.
-________________________________________
-6. Stop Turret
+```
+
+Speed range:
+
+```text
+1  = slow
+5  = normal
+10 = fast
+```
+
+---
+
+### Stop Turret
+
+```js
 stopTurret();
-Purpose:
-Stops current movement at current position.
-Turns laser off.
-________________________________________
-7. Arm Laser
+```
+
+This stops the turret at the current position and turns the laser off.
+
+---
+
+### Arm Laser
+
+```js
 arm();
-Purpose:
-Allows laser pulse commands.
+```
+
 The laser will not turn on unless the system is armed.
-________________________________________
-8. Disarm Laser
+
+---
+
+### Disarm Laser
+
+```js
 disarm();
-Purpose:
-Blocks laser from turning on.
-Also turns laser off immediately.
-________________________________________
-9. Pulse Laser
+```
+
+This blocks laser activation and turns the laser off immediately.
+
+---
+
+### Pulse Laser
+
+```js
 pulse(500);
-Format:
-pulse(milliseconds);
-Example:
+```
+
+This turns the laser on for 500 ms, then automatically turns it off.
+
+Other examples:
+
+```js
 pulse(300);
-pulse(500);
 pulse(1000);
-Purpose:
-Turns laser on for the selected time and then automatically turns it off.
-The firmware limits laser pulse time to a maximum of 3000 ms.
-________________________________________
-10. Aim and Pulse Together
-aimPulse(120, 70, 5, 300);
-Format:
-aimPulse(pan, tilt, speed, pulse_ms);
-Meaning:
-Move to pan 120
-Move to tilt 70
-Use speed 5
-Pulse laser for 300 ms
-Laser must be armed first:
+```
+
+The firmware limits the maximum pulse duration.
+
+---
+
+### Aim and Pulse Together
+
+```js
 arm();
 aimPulse(120, 70, 5, 300);
 disarm();
-________________________________________
-Cool Test Patterns
-Square Test
+```
+
+Format:
+
+```js
+aimPulse(pan, tilt, speed, pulse_ms);
+```
+
+---
+
+## JSON Command Reference
+
+### Ping
+
+```json
+{
+  "id": 1,
+  "cmd": "ping"
+}
+```
+
+---
+
+### Aim
+
+```json
+{
+  "id": 2,
+  "cmd": "aim",
+  "pan": 120,
+  "tilt": 70,
+  "speed": 5,
+  "laser": 0
+}
+```
+
+---
+
+### Center
+
+```json
+{
+  "id": 3,
+  "cmd": "center"
+}
+```
+
+---
+
+### Stop
+
+```json
+{
+  "id": 4,
+  "cmd": "stop"
+}
+```
+
+---
+
+### Arm
+
+```json
+{
+  "id": 5,
+  "cmd": "arm",
+  "value": true
+}
+```
+
+---
+
+### Disarm
+
+```json
+{
+  "id": 6,
+  "cmd": "arm",
+  "value": false
+}
+```
+
+---
+
+### Laser Pulse
+
+```json
+{
+  "id": 7,
+  "cmd": "laser",
+  "value": 1,
+  "pulse_ms": 500
+}
+```
+
+---
+
+### Laser Off
+
+```json
+{
+  "id": 8,
+  "cmd": "laser",
+  "value": 0
+}
+```
+
+---
+
+### Aim + Laser Pulse
+
+```json
+{
+  "id": 9,
+  "cmd": "aim",
+  "pan": 120,
+  "tilt": 70,
+  "speed": 5,
+  "laser": 1,
+  "pulse_ms": 300
+}
+```
+
+---
+
+### Set Servo Limits
+
+```json
+{
+  "id": 10,
+  "cmd": "limits",
+  "pan_min": 0,
+  "pan_max": 180,
+  "tilt_min": 0,
+  "tilt_max": 180
+}
+```
+
+---
+
+## ESP32 Reply Format
+
+The ESP32 replies with JSON after receiving commands.
+
+Example:
+
+```json
+{
+  "v": 1,
+  "id": 2,
+  "ok": true,
+  "msg": "aim accepted",
+  "pan": 90,
+  "tilt": 90,
+  "target_pan": 120,
+  "target_tilt": 70,
+  "speed": 5,
+  "armed": false,
+  "laser": false,
+  "ip": "192.168.0.107"
+}
+```
+
+Field meaning:
+
+| Field         | Meaning                      |
+| ------------- | ---------------------------- |
+| `ok`          | Whether command was accepted |
+| `msg`         | Status message               |
+| `pan`         | Current pan angle            |
+| `tilt`        | Current tilt angle           |
+| `target_pan`  | Target pan angle             |
+| `target_tilt` | Target tilt angle            |
+| `speed`       | Servo movement speed         |
+| `armed`       | Laser safety state           |
+| `laser`       | Current laser output state   |
+| `ip`          | ESP32 IP address             |
+
+---
+
+## Test Patterns
+
+### Square Test
+
+Paste this in the browser console after the test controller:
+
+```js
 function squareTest() {
   arm();
 
@@ -779,20 +738,38 @@ function squareTest() {
   setTimeout(() => center(), 5000);
   setTimeout(() => disarm(), 5600);
 }
+```
+
 Run:
+
+```js
 squareTest();
-________________________________________
-Scan Test
+```
+
+---
+
+### Scan Test
+
+```js
 function scanTest() {
   aim(30, 90, 4);
   setTimeout(() => aim(150, 90, 4), 1500);
   setTimeout(() => aim(30, 90, 4), 3000);
   setTimeout(() => center(), 4500);
 }
+```
+
 Run:
+
+```js
 scanTest();
-________________________________________
-Simple Left-Right Pulse Test
+```
+
+---
+
+### Pulse Scan Test
+
+```js
 function pulseScan() {
   arm();
 
@@ -803,175 +780,80 @@ function pulseScan() {
   setTimeout(() => center(), 3000);
   setTimeout(() => disarm(), 3500);
 }
+```
+
 Run:
+
+```js
 pulseScan();
-________________________________________
-WebSocket Command Format
-The ESP32 receives JSON text over WebSocket.
-WebSocket address:
-ws://192.168.0.107:81/
-or:
-ws://turret.local:81/
-Basic JSON command format:
-{
-  "id": 1,
-  "cmd": "command_name"
-}
-________________________________________
-Command Reference
-Ping
-{
-  "id": 1,
-  "cmd": "ping"
-}
-________________________________________
-Aim
-{
-  "id": 2,
-  "cmd": "aim",
-  "pan": 120,
-  "tilt": 70,
-  "speed": 5,
-  "laser": 0
-}
-________________________________________
-Center
-{
-  "id": 3,
-  "cmd": "center"
-}
-________________________________________
-Stop
-{
-  "id": 4,
-  "cmd": "stop"
-}
-________________________________________
-Arm
-{
-  "id": 5,
-  "cmd": "arm",
-  "value": true
-}
-________________________________________
-Disarm
-{
-  "id": 6,
-  "cmd": "arm",
-  "value": false
-}
-________________________________________
-Laser Pulse
-{
-  "id": 7,
-  "cmd": "laser",
-  "value": 1,
-  "pulse_ms": 500
-}
-________________________________________
-Laser Off
-{
-  "id": 8,
-  "cmd": "laser",
-  "value": 0
-}
-________________________________________
-Aim + Laser Pulse
-{
-  "id": 9,
-  "cmd": "aim",
-  "pan": 120,
-  "tilt": 70,
-  "speed": 5,
-  "laser": 1,
-  "pulse_ms": 300
-}
-________________________________________
-Set Servo Limits
-{
-  "id": 10,
-  "cmd": "limits",
-  "pan_min": 0,
-  "pan_max": 180,
-  "tilt_min": 0,
-  "tilt_max": 180
-}
-________________________________________
-ESP32 Reply Format
-The ESP32 replies with JSON.
-Example:
-{
-  "v": 1,
-  "id": 2,
-  "ok": true,
-  "msg": "aim accepted",
-  "pan": 90,
-  "tilt": 90,
-  "target_pan": 120,
-  "target_tilt": 70,
-  "speed": 5,
-  "armed": false,
-  "laser": false,
-  "ip": "192.168.0.107"
-}
-Important fields:
-Field	Meaning
-ok	Whether command was accepted
-msg	Status message
-pan	Current pan angle
-tilt	Current tilt angle
-target_pan	Target pan angle
-target_tilt	Target tilt angle
-speed	Current movement speed
-armed	Laser arm state
-laser	Laser output state
-________________________________________
-Future Python Integration
-Later, a Python app can connect to the same WebSocket:
-ws://192.168.0.107:81/
-The Python app will be responsible for:
-•	Camera feed
-•	Click detection
-•	Red color tracking
-•	Object tracking
-•	GPT or voice command interpretation
-•	Mapping clicked screen position to pan/tilt angles
-ESP32 will remain the actuator controller.
-Final future system:
-Camera
-  ↓
-Python OpenCV
-  ↓
-Click / Red Tracking / GPT Command
-  ↓
-Calculate pan and tilt
-  ↓
-Send JSON over WebSocket
-  ↓
-ESP32 moves turret
-________________________________________
-Current Project Status
+```
+
+---
+
+## Future Python Integration
+
+Later, Python can connect to the same WebSocket server and send the same JSON commands.
+
+Planned Python-side features:
+
+* WebSocket client
+* OpenCV camera feed
+* Mouse click-to-aim
+* Red color tracking
+* Object tracking
+* GPT/voice command parser
+* Coordinate-to-servo calibration system
+
+Future flow:
+
+```text
+Camera Frame
+    ↓
+Python/OpenCV Processing
+    ↓
+Calculate Pan/Tilt
+    ↓
+Send JSON Command
+    ↓
+ESP32 Moves Turret
+```
+
+---
+
+## Current Project Status
+
 Completed:
-ESP32 WiFi connection
-WebSocket server
-JSON command system
-Pan control
-Tilt control
-Speed control
-Laser arm/disarm
-Laser pulse
-Status endpoint
-Browser console testing
-Next possible steps:
-Python WebSocket client
-OpenCV camera window
-Click-to-aim
-Red color tracking
-GPT command parser
-Voice command interface
-________________________________________
-Short Description
-Wireless ESP32 Pan-Tilt Laser Turret built using two SG90 servos and a 3.3V laser module.
-The ESP32 runs as a WebSocket-based turret server and receives JSON commands from a PC/browser.
-It supports pan, tilt, speed control, laser arm/disarm, laser pulse, status feedback, and WiFi setup mode.
-This creates a future-ready base for Python, OpenCV, click-to-aim, red object tracking, and GPT-based command control.
+
+* ESP32 WiFi setup
+* ESP32 WebSocket server
+* JSON-based command system
+* Pan servo control
+* Tilt servo control
+* Speed-controlled movement
+* Laser arm/disarm logic
+* Laser pulse system
+* HTTP status endpoint
+* Browser console testing
+
+Next steps:
+
+* Python WebSocket client
+* Camera feed integration
+* Click-to-aim
+* Red color tracking
+* GPT/voice command layer
+
+---
+
+## Short Project Description
+
+Wireless ESP32 pan-tilt control system using WebSocket and JSON commands.
+The ESP32 acts as a hardware controller for two SG90 servos and a low-power laser module, while the PC can send real-time commands wirelessly.
+
+This project creates a future-ready base for Python, OpenCV, click-to-aim, red object tracking, and GPT/voice-based control.
+
+---
+
+## License
+
+This project is for educational and prototyping purposes.
