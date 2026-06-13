@@ -16,12 +16,17 @@ Project Goal
 The goal is to create a stable communication base between a PC and ESP32.
 Current stage:
 PC / Browser Console
+
         ↓
+
 WebSocket JSON Commands
         ↓
+
 ESP32
         ↓
+
 Pan Servo + Tilt Servo + 3.3V Laser
+
 Future stage:
 Camera + OpenCV + GPT / Voice Commands
         ↓
